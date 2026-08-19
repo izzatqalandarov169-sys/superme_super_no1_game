@@ -1,72 +1,58 @@
 name: SUPERME Android APK
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build SUPERME Android APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Install Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Install Android SDK
-        shell: bash
-        run: |
-          set -euxo pipefail
-          SDK_ROOT="$RUNNER_TEMP/android-sdk"
-          mkdir -p "$SDK_ROOT/cmdline-tools"
-          curl -fsSL -o "$RUNNER_TEMP/cmdline-tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-tools"
-          mkdir -p "$SDK_ROOT/cmdline-tools/latest"
-          mv "$RUNNER_TEMP/cmdline-tools/cmdline-tools"/* "$SDK_ROOT/cmdline-tools/latest/"
-          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" "build-tools;34.0.0"
-          test -d "$SDK_ROOT/platforms/android-35"
-          test -d "$SDK_ROOT/build-tools/35.0.0"
+        uses: android-actions/setup-android@v3
 
-      - name: Install Godot 4.4.1 and export templates
-        shell: bash
+      - name: Install Android packages
         run: |
-          set -euxo pipefail
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          yes | sdkmanager --licenses >/dev/null || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
+
+      - name: Install Godot 4.4.1
+        run: |
           mkdir -p "$RUNNER_TEMP/godot"
-          curl -fsSL -o "$RUNNER_TEMP/godot.zip" https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          curl -fL "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" -o "$RUNNER_TEMP/godot.zip"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
-          GODOT_BIN="$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64"
-          chmod +x "$GODOT_BIN"
-          echo "GODOT=$GODOT_BIN" >> "$GITHUB_ENV"
+          mv "$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64" "$RUNNER_TEMP/godot/godot"
+          chmod +x "$RUNNER_TEMP/godot/godot"
           echo "$RUNNER_TEMP/godot" >> "$GITHUB_PATH"
+          echo "GODOT=$RUNNER_TEMP/godot/godot" >> "$GITHUB_ENV"
+
+      - name: Install Godot Android export template
+        run: |
           mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
-          curl -fsSL -o "$RUNNER_TEMP/templates.tpz" https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          curl -fL "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz" -o "$RUNNER_TEMP/templates.tpz"
           unzip -q "$RUNNER_TEMP/templates.tpz" -d "$RUNNER_TEMP/templates"
           cp -R "$RUNNER_TEMP/templates/templates/." "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
-          test -n "$(find "$HOME/.local/share/godot/export_templates/4.4.1.stable" -type f | head -1)"
 
-      - name: Prepare Android debug keystore
-        shell: bash
+      - name: Prepare debug keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/debug.keystore" \
-            -alias androiddebugkey \
-            -storepass android \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           echo "GODOT_DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
 
-      - name: Configure Godot Android paths
-        shell: bash
+      - name: Configure Godot Android export
         run: |
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
@@ -75,25 +61,22 @@ jobs:
 [resource]
 export/android/android_sdk_path = "$ANDROID_HOME"
 export/android/java_sdk_path = "$JAVA_HOME"
-export/android/debug_keystore = "$GODOT_DEBUG_KEYSTORE"
+export/android/debug_keystore = "$RUNNER_TEMP/debug.keystore"
 export/android/debug_keystore_user = "androiddebugkey"
 export/android/debug_keystore_pass = "android"
 EOF
 
-      - name: Validate project
-        shell: bash
+      - name: Check Godot and project
         run: |
+          "$GODOT" --version
           "$GODOT" --headless --editor --path . --quit
 
-      - name: Build Android APK
-        shell: bash
+      - name: Build APK
         run: |
-          set -euxo pipefail
           rm -rf build/android
           mkdir -p build/android
           "$GODOT" --headless --path . --export-debug "Android" build/android/SUPERME-UZBEK-WORLD.apk
           test -s build/android/SUPERME-UZBEK-WORLD.apk
-          ls -lh build/android/SUPERME-UZBEK-WORLD.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
