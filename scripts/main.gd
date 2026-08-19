@@ -5,6 +5,7 @@ var cars: Array[CharacterBody3D] = []
 var npcs: Array[CharacterBody3D] = []
 var sun: DirectionalLight3D
 var time_of_day := 8.0
+var menu_layer: CanvasLayer
 
 func _ready() -> void:
     _build_world()
@@ -12,6 +13,7 @@ func _ready() -> void:
     _spawn_cars()
     _spawn_npcs()
     _build_hud()
+    _build_main_menu()
 
 func _process(delta: float) -> void:
     time_of_day = fmod(time_of_day + delta * 0.08, 24.0)
@@ -135,6 +137,71 @@ func _build_hud() -> void:
     add_child(layer)
     var label := Label.new()
     label.position = Vector2(24, 20)
-    label.text = "SUPERME OPEN WORLD\nWASD: yurish | E: mashinaga chiqish | F: tushish\nOFFLINE PROTOTYPE • Barcha boshlang‘ich transport ochiq"
+    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: mashinaga chiqish | F: tushish\nOFFLINE • Barcha boshlang‘ich transport ochiq"
     label.add_theme_font_size_override("font_size", 20)
     layer.add_child(label)
+
+func _build_main_menu() -> void:
+    menu_layer = CanvasLayer.new()
+    menu_layer.layer = 20
+    add_child(menu_layer)
+
+    var background := ColorRect.new()
+    background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    background.color = Color(0.02, 0.05, 0.09, 0.94)
+    menu_layer.add_child(background)
+
+    var title := Label.new()
+    title.text = "SUPERME: UZBEK WORLD"
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    title.position = Vector2(0, 90)
+    title.size = Vector2(1280, 80)
+    title.add_theme_font_size_override("font_size", 48)
+    title.add_theme_color_override("font_color", Color("#46c7ff"))
+    menu_layer.add_child(title)
+
+    var subtitle := Label.new()
+    subtitle.text = "OFFLINE OPEN WORLD • 🇺🇿"
+    subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    subtitle.position = Vector2(0, 165)
+    subtitle.size = Vector2(1280, 40)
+    subtitle.add_theme_font_size_override("font_size", 20)
+    menu_layer.add_child(subtitle)
+
+    var start := Button.new()
+    start.text = "▶  O‘YINNI BOSHLASH"
+    start.position = Vector2(440, 260)
+    start.size = Vector2(400, 65)
+    start.add_theme_font_size_override("font_size", 24)
+    start.pressed.connect(_start_game)
+    menu_layer.add_child(start)
+
+    var garage := Button.new()
+    garage.text = "🚗  GARAJ / TRANSPORT"
+    garage.position = Vector2(440, 340)
+    garage.size = Vector2(400, 55)
+    garage.pressed.connect(func(): _show_message("Garaj: mashina va moto katalogi — keyingi modul"))
+    menu_layer.add_child(garage)
+
+    var phone := Button.new()
+    phone.text = "📱  TELEFON / CHATGPT"
+    phone.position = Vector2(440, 410)
+    phone.size = Vector2(400, 55)
+    phone.pressed.connect(func(): _show_message("Telefon: ichki AI yordamchi — keyingi modul"))
+    menu_layer.add_child(phone)
+
+    var settings := Button.new()
+    settings.text = "⚙  SOZLAMALAR"
+    settings.position = Vector2(440, 480)
+    settings.size = Vector2(400, 55)
+    settings.pressed.connect(func(): _show_message("Sozlamalar: grafika, ovoz, til va boshqaruv"))
+    menu_layer.add_child(settings)
+
+func _start_game() -> void:
+    menu_layer.visible = false
+
+func _show_message(text: String) -> void:
+    var dialog := AcceptDialog.new()
+    dialog.dialog_text = text
+    menu_layer.add_child(dialog)
+    dialog.popup_centered()
