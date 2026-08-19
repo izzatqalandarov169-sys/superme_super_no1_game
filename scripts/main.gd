@@ -6,12 +6,18 @@ var npcs: Array[CharacterBody3D] = []
 var sun: DirectionalLight3D
 var time_of_day := 8.0
 var menu_layer: CanvasLayer
+var garage_layer: CanvasLayer
+var world_streamer: Node3D
+var vehicle_catalog: Array = []
+var selected_vehicle: Dictionary = {}
 
 func _ready() -> void:
+    vehicle_catalog = _load_vehicle_catalog()
     _build_world()
     _spawn_player()
     _spawn_cars()
     _spawn_npcs()
+    _build_world_streamer()
     _build_hud()
     _build_main_menu()
 
@@ -48,6 +54,13 @@ func _build_world() -> void:
                 continue
             var h := 4.0 + float(abs((x * 7 + z * 3) % 12))
             _make_box("Building", Vector3(8, h, 8), Vector3(x, h * 0.5, z), Color("#8b9198"))
+
+func _build_world_streamer() -> void:
+    world_streamer = Node3D.new()
+    world_streamer.name = "WorldStreamer"
+    world_streamer.set_script(load("res://scripts/world_streamer.gd"))
+    add_child(world_streamer)
+    world_streamer.setup(player)
 
 func _make_box(n: String, size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
     var body := StaticBody3D.new()
@@ -102,10 +115,10 @@ func _spawn_npcs() -> void:
 
 func _make_character_mesh(body: Node3D, color: Color, radius: float) -> void:
     var mesh := MeshInstance3D.new()
-    var sphere := CapsuleMesh.new()
-    sphere.radius = radius
-    sphere.height = radius * 3.0
-    mesh.mesh = sphere
+    var capsule := CapsuleMesh.new()
+    capsule.radius = radius
+    capsule.height = radius * 3.0
+    mesh.mesh = capsule
     var mat := StandardMaterial3D.new()
     mat.albedo_color = color
     mesh.material_override = mat
@@ -132,12 +145,47 @@ func _make_car_mesh(body: Node3D, variant: int) -> void:
     collision.shape = shape
     body.add_child(collision)
 
+func _load_vehicle_catalog() -> Array:
+    var catalog_script = load("res://data/vehicle_catalog_extended.gd")
+    var base_script = load("res://data/vehicle_catalog.gd")
+    if catalog_script and base_script:
+        return catalog_script.all_transport()
+    if base_script:
+        return base_script.all_vehicles()
+    return []
+
+func _open_garage() -> void:
+    if garage_layer:
+        garage_layer.queue_free()
+    garage_layer = load("res://scripts/garage.gd").new()
+    add_child(garage_layer)
+    garage_layer.vehicle_selected.connect(_on_vehicle_selected)
+    garage_layer.open(vehicle_catalog)
+
+func _on_vehicle_selected(vehicle: Dictionary) -> void:
+    selected_vehicle = vehicle.duplicate(true)
+    _spawn_selected_vehicle()
+
+func _spawn_selected_vehicle() -> void:
+    for old_car in cars:
+        if is_instance_valid(old_car):
+            old_car.queue_free()
+    cars.clear()
+    var vehicle := CharacterBody3D.new()
+    vehicle.name = "SelectedVehicle"
+    vehicle.position = player.global_position + Vector3(3, 0.8, 0)
+    vehicle.set_script(load("res://scripts/vehicle.gd"))
+    add_child(vehicle)
+    var variant := int(selected_vehicle.get("speed", 0)) % 8
+    _make_car_mesh(vehicle, variant)
+    cars.append(vehicle)
+
 func _build_hud() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
     var label := Label.new()
     label.position = Vector2(24, 20)
-    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: mashinaga chiqish | F: tushish\nOFFLINE • Barcha boshlang‘ich transport ochiq"
+    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: mashinaga chiqish | F: tushish\nOFFLINE • Transport katalogi ochiq"
     label.add_theme_font_size_override("font_size", 20)
     layer.add_child(label)
 
@@ -180,14 +228,14 @@ func _build_main_menu() -> void:
     garage.text = "🚗  GARAJ / TRANSPORT"
     garage.position = Vector2(440, 340)
     garage.size = Vector2(400, 55)
-    garage.pressed.connect(func(): _show_message("Garaj: mashina va moto katalogi — keyingi modul"))
+    garage.pressed.connect(_open_garage)
     menu_layer.add_child(garage)
 
     var phone := Button.new()
     phone.text = "📱  TELEFON / CHATGPT"
     phone.position = Vector2(440, 410)
     phone.size = Vector2(400, 55)
-    phone.pressed.connect(func(): _show_message("Telefon: ichki AI yordamchi — keyingi modul"))
+    phone.pressed.connect(func(): _show_message("Telefon / ichki AI — keyingi modul"))
     menu_layer.add_child(phone)
 
     var settings := Button.new()
