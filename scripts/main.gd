@@ -100,6 +100,8 @@ func _build_services() -> void:
     event_system = load("res://scripts/world_events.gd").new()
     event_system.name = "WorldEvents"
     add_child(event_system)
+    event_system.event_started.connect(_on_world_event_started)
+    event_system.event_finished.connect(_on_world_event_finished)
 
     save_system = load("res://scripts/save_system.gd").new()
     save_system.name = "SaveSystem"
@@ -108,6 +110,15 @@ func _build_services() -> void:
     phone_layer = load("res://scripts/phone_system.gd").new()
     add_child(phone_layer)
     phone_layer.emergency_called.connect(_on_emergency_called)
+
+func _on_world_event_started(event: Dictionary) -> void:
+    if event.get("type", "") == "police_chase":
+        report_crime(1)
+    if economy_system:
+        economy_system.earn(int(event.get("reward", 0)))
+
+func _on_world_event_finished(_event: Dictionary) -> void:
+    pass
 
 func report_crime(level: int = 1) -> void:
     if police_system and police_system.has_method("report_crime"):
