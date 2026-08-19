@@ -1,5 +1,5 @@
 [application]
-config/name="Superme Super No1 Game"
+config/name="SUPERME: UZBEK WORLD"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 
