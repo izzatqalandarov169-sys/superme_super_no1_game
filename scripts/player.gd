@@ -1,6 +1,15 @@
 extends CharacterBody3D
 
 const SPEED := 7.0
+const WEAPON_SLOTS := {
+    KEY_1: "pistol",
+    KEY_2: "rifle",
+    KEY_3: "grenade",
+    KEY_4: "rpg",
+    KEY_5: "galaxy_blaster",
+    KEY_6: "galaxy_ray"
+}
+
 var gravity := 20.0
 var vehicle: CharacterBody3D = null
 var health := 100.0
@@ -9,6 +18,10 @@ var attack_cooldown := 0.0
 
 func _physics_process(delta: float) -> void:
     attack_cooldown = maxf(0.0, attack_cooldown - delta)
+    for key in WEAPON_SLOTS:
+        if Input.is_key_pressed(key):
+            weapon_id = WEAPON_SLOTS[key]
+            break
     if vehicle:
         global_position = vehicle.global_position + Vector3(0, 1.6, 0)
         if Input.is_action_just_pressed("exit_vehicle"):
@@ -34,8 +47,10 @@ func _try_enter_vehicle() -> void:
     var nearest: CharacterBody3D = null
     var distance := 3.5
     for node in get_tree().get_nodes_in_group("vehicles"):
+        if not is_instance_valid(node):
+            continue
         var d: float = global_position.distance_to(node.global_position)
-        if d < distance:
+        if d < distance and node.get_meta("driver", null) == null:
             distance = d
             nearest = node
     if nearest:
@@ -45,8 +60,9 @@ func _try_enter_vehicle() -> void:
 func _exit_vehicle() -> void:
     var old_vehicle := vehicle
     vehicle = null
-    global_position = old_vehicle.global_position + Vector3(2.5, 0.5, 0)
-    old_vehicle.remove_meta("driver")
+    if old_vehicle and is_instance_valid(old_vehicle):
+        global_position = old_vehicle.global_position + Vector3(2.5, 0.5, 0)
+        old_vehicle.remove_meta("driver")
 
 func _fire_at_nearest_npc() -> void:
     var nearest: Node3D = null
@@ -59,7 +75,7 @@ func _fire_at_nearest_npc() -> void:
             distance = d
             nearest = node
     if nearest and WeaponController.fire(self, nearest, weapon_id):
-        attack_cooldown = 0.65
+        attack_cooldown = float(WeaponController.WEAPONS[weapon_id].cooldown)
         var root := get_parent()
         if root.has_method("report_crime"):
             root.report_crime(1)
