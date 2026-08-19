@@ -1,11 +1,11 @@
 extends Node3D
 
-## SUPERME: UZBEK WORLD — streamed open-world prototype.
-## Keeps a GTA-style large world feeling while only keeping nearby sectors active.
+## SUPERME: UZBEK WORLD — streamed 1200 km x 1200 km world prototype.
+## Only nearby sectors are active, so the theoretical world can be enormous.
 
 @export var sector_size := 80.0
 @export var active_radius := 2
-@export var world_sectors := Vector2i(25, 25)
+@export var world_sectors := Vector2i(7500, 7500)
 
 var loaded_sectors: Dictionary = {}
 var player: Node3D
@@ -43,8 +43,6 @@ func _ensure_sector(coord: Vector2i) -> void:
     add_child(sector)
     loaded_sectors[coord] = sector
 
-    # Lightweight road/grid markers. Detailed buildings, NPCs and traffic
-    # can be streamed into this sector by later gameplay systems.
     for axis in range(2):
         var road := MeshInstance3D.new()
         var mesh := BoxMesh.new()
