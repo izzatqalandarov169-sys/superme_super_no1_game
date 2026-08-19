@@ -11,7 +11,7 @@ func open(owner: Node3D) -> void:
         phone_panel.queue_free()
     phone_panel = PanelContainer.new()
     phone_panel.position = Vector2(820, 40)
-    phone_panel.size = Vector2(400, 620)
+    phone_panel.size = Vector2(400, 650)
     add_child(phone_panel)
     var root := VBoxContainer.new()
     phone_panel.add_child(root)
@@ -19,7 +19,14 @@ func open(owner: Node3D) -> void:
     title.text = "📱 SUPERME PHONE"
     title.add_theme_font_size_override("font_size", 28)
     root.add_child(title)
-    for item in ["💬 ChatGPT", "🗺 GPS / Lokatsiya", "🚓 102 POLITSIYA", "🚑 103 TEZ YORDAM", "🚒 101 YONG‘IN", "💰 BANK", "📞 ALOQALAR"]:
+    var input := LineEdit.new()
+    input.placeholder_text = "ChatGPT: savolingizni yozing..."
+    root.add_child(input)
+    var ask := Button.new()
+    ask.text = "🤖 ChatGPT"
+    ask.pressed.connect(func(): _ask_ai(input.text))
+    root.add_child(ask)
+    for item in ["🗺 GPS / Lokatsiya", "🚓 102 POLITSIYA", "🚑 103 TEZ YORDAM", "🚒 101 YONG‘IN", "💰 BANK", "📞 ALOQALAR"]:
         var b := Button.new()
         b.text = item
         b.custom_minimum_size = Vector2(0, 48)
@@ -29,6 +36,8 @@ func open(owner: Node3D) -> void:
             b.pressed.connect(_call_service.bind("103"))
         elif item.contains("101"):
             b.pressed.connect(_call_service.bind("101"))
+        elif item.contains("GPS"):
+            b.pressed.connect(_show_location)
         else:
             b.pressed.connect(_show_info.bind(item))
         root.add_child(b)
@@ -36,6 +45,13 @@ func open(owner: Node3D) -> void:
     close.text = "✕ Yopish"
     close.pressed.connect(close_phone)
     root.add_child(close)
+
+func _ask_ai(text: String) -> void:
+    _show_info(load("res://scripts/ai_phone.gd").answer(text))
+
+func _show_location() -> void:
+    var location := owner_node.global_position if is_instance_valid(owner_node) else Vector3.ZERO
+    _show_info("📍 Joriy lokatsiya: %.1f, %.1f, %.1f" % [location.x, location.y, location.z])
 
 func _call_service(service: String) -> void:
     var location := owner_node.global_position if is_instance_valid(owner_node) else Vector3.ZERO
