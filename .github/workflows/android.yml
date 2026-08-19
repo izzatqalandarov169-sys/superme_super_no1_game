@@ -8,11 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GODOT_VERSION: 4.4.1
-      ANDROID_HOME: ${{ github.workspace }}/android-sdk
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.0/x64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,10 +21,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK components
+      - name: Install Android SDK 35
+        shell: bash
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           yes | sdkmanager --licenses >/dev/null || true
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
@@ -38,21 +37,36 @@ jobs:
           use-dotnet: false
           include-templates: true
 
-      - name: Configure Godot Android paths
+      - name: Configure Godot Android SDK
+        shell: bash
         run: |
           mkdir -p "$HOME/.config/godot"
-          mkdir -p "$HOME/.local/share/godot"
-          godot --headless --editor --quit
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" load_steps=2 format=3]
 
-      - name: Validate project
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = ""
+          EOF
+          godot --headless --editor --path . --quit
+
+      - name: Validate Android toolchain
+        shell: bash
         run: |
-          godot --headless --path . --editor --quit
+          godot --headless --editor --path . --quit
+          echo "SDK: $ANDROID_HOME"
+          echo "Java: $JAVA_HOME"
+          ls -la "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Build Android APK
+        shell: bash
         run: |
+          rm -rf build/android
           mkdir -p build/android
           godot --headless --path . --export-debug "Android" build/android/SUPERME-UZBEK-WORLD.apk
           test -s build/android/SUPERME-UZBEK-WORLD.apk
+          ls -lh build/android/SUPERME-UZBEK-WORLD.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
