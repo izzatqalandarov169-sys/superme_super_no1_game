@@ -1,7 +1,5 @@
+class_name WeaponController
 extends Node
-
-# Offline fictional combat controller. Supports normal, grenade/RPG-style and
-# fantasy/galaxy weapon profiles without real-world construction details.
 
 const WEAPONS := {
     "pistol": {"damage": 20.0, "range": 55.0, "cooldown": 0.35},
