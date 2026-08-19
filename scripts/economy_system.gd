@@ -7,6 +7,7 @@ var money: int = 1000000
 var reputation: int = 0
 var wanted_level: int = 0
 var prison_seconds: int = 0
+var prison_accumulator := 0.0
 
 const ACTIVITIES := [
     "Taxi", "Delivery", "Courier", "Mechanic", "Driver", "Farmer", "Builder", "Guard",
@@ -31,7 +32,12 @@ func clear_wanted() -> void:
 
 func enter_prison(seconds: int = 300) -> void:
     prison_seconds = maxi(seconds, 0)
+    prison_accumulator = 0.0
 
 func tick_prison(delta: float) -> void:
-    if prison_seconds > 0:
-        prison_seconds = maxi(0, prison_seconds - int(delta))
+    if prison_seconds <= 0:
+        return
+    prison_accumulator += delta
+    while prison_accumulator >= 1.0 and prison_seconds > 0:
+        prison_seconds -= 1
+        prison_accumulator -= 1.0
