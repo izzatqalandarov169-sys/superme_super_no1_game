@@ -16,6 +16,9 @@ renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.08, 0.12, 0.18, 1)
 
+[android]
+export/use_legacy_build=false
+
 [input]
 move_forward={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":87)]}
 move_back={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":83)]}
