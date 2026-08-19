@@ -7,7 +7,10 @@ var sun: DirectionalLight3D
 var time_of_day := 8.0
 var menu_layer: CanvasLayer
 var garage_layer: CanvasLayer
+var phone_layer: CanvasLayer
 var world_streamer: Node3D
+var police_system: Node3D
+var economy_system: Node
 var vehicle_catalog: Array = []
 var selected_vehicle: Dictionary = {}
 
@@ -18,6 +21,7 @@ func _ready() -> void:
     _spawn_cars()
     _spawn_npcs()
     _build_world_streamer()
+    _build_services()
     _build_hud()
     _build_main_menu()
 
@@ -25,6 +29,8 @@ func _process(delta: float) -> void:
     time_of_day = fmod(time_of_day + delta * 0.08, 24.0)
     if sun:
         sun.rotation_degrees.x = -25.0 + (time_of_day / 24.0) * 360.0
+    if economy_system and economy_system.has_method("tick_prison"):
+        economy_system.tick_prison(delta)
 
 func _build_world() -> void:
     sun = DirectionalLight3D.new()
@@ -61,6 +67,33 @@ func _build_world_streamer() -> void:
     world_streamer.set_script(load("res://scripts/world_streamer.gd"))
     add_child(world_streamer)
     world_streamer.setup(player)
+
+func _build_services() -> void:
+    economy_system = load("res://scripts/economy_system.gd").new()
+    economy_system.name = "EconomySystem"
+    add_child(economy_system)
+
+    police_system = Node3D.new()
+    police_system.name = "PoliceSystem"
+    police_system.set_script(load("res://scripts/police_system.gd"))
+    add_child(police_system)
+    police_system.setup(player)
+
+    phone_layer = load("res://scripts/phone_system.gd").new()
+    add_child(phone_layer)
+    phone_layer.emergency_called.connect(_on_emergency_called)
+
+func report_crime(level: int = 1) -> void:
+    if police_system and police_system.has_method("report_crime"):
+        police_system.report_crime(level)
+    if economy_system and economy_system.has_method("commit_crime"):
+        economy_system.commit_crime(level)
+
+func _on_emergency_called(service: String, location: Vector3) -> void:
+    if service == "102" and police_system:
+        police_system.report_crime(1)
+    # 101/103 keep their exact location through the phone signal for later AI/service agents.
+    print("Emergency ", service, " requested at ", location)
 
 func _make_box(n: String, size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
     var body := StaticBody3D.new()
@@ -109,6 +142,7 @@ func _spawn_npcs() -> void:
         npc.position = spots[i]
         npc.set_script(load("res://scripts/npc.gd"))
         npc.target = player
+        npc.add_to_group("npcs")
         add_child(npc)
         _make_character_mesh(npc, Color.from_hsv(float(i) / spots.size(), 0.65, 0.9), 0.55)
         npcs.append(npc)
@@ -136,7 +170,7 @@ func _make_car_mesh(body: Node3D, variant: int) -> void:
     box.size = Vector3(2.2, 0.8, 4.2)
     mesh.mesh = box
     var mat := StandardMaterial3D.new()
-    mat.albedo_color = Color.from_hsv(float(variant) / 4.0, 0.75, 0.9)
+    mat.albedo_color = Color.from_hsv(float(variant) / 8.0, 0.75, 0.9)
     mesh.material_override = mat
     body.add_child(mesh)
     var collision := CollisionShape3D.new()
@@ -180,12 +214,16 @@ func _spawn_selected_vehicle() -> void:
     _make_car_mesh(vehicle, variant)
     cars.append(vehicle)
 
+func _open_phone() -> void:
+    if phone_layer:
+        phone_layer.open(player)
+
 func _build_hud() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
     var label := Label.new()
     label.position = Vector2(24, 20)
-    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: mashinaga chiqish | F: tushish\nOFFLINE • Transport katalogi ochiq"
+    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: transport | F: tushish | G: qurol | Telefon: menyudan\nOFFLINE • Transport va qurol kataloglari ochiq"
     label.add_theme_font_size_override("font_size", 20)
     layer.add_child(label)
 
@@ -235,7 +273,7 @@ func _build_main_menu() -> void:
     phone.text = "📱  TELEFON / CHATGPT"
     phone.position = Vector2(440, 410)
     phone.size = Vector2(400, 55)
-    phone.pressed.connect(func(): _show_message("Telefon / ichki AI — keyingi modul"))
+    phone.pressed.connect(_open_phone)
     menu_layer.add_child(phone)
 
     var settings := Button.new()
