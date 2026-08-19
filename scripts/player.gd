@@ -27,7 +27,7 @@ func _physics_process(delta: float) -> void:
 
     if Input.is_action_just_pressed("interact"):
         _try_enter_vehicle()
-    if (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_key_pressed(KEY_G)) and attack_cooldown <= 0.0:
+    if (Input.is_action_just_pressed("fire") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_key_pressed(KEY_G)) and attack_cooldown <= 0.0:
         _fire_at_nearest_npc()
 
 func _try_enter_vehicle() -> void:
