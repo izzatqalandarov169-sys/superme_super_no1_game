@@ -11,6 +11,10 @@ var phone_layer: CanvasLayer
 var world_streamer: Node3D
 var police_system: Node3D
 var economy_system: Node
+var traffic_system: Node3D
+var service_system: Node3D
+var event_system: Node
+var save_system: Node
 var vehicle_catalog: Array = []
 var selected_vehicle: Dictionary = {}
 
@@ -24,6 +28,7 @@ func _ready() -> void:
     _build_services()
     _build_hud()
     _build_main_menu()
+    _load_saved_game()
 
 func _process(delta: float) -> void:
     time_of_day = fmod(time_of_day + delta * 0.08, 24.0)
@@ -31,13 +36,16 @@ func _process(delta: float) -> void:
         sun.rotation_degrees.x = -25.0 + (time_of_day / 24.0) * 360.0
     if economy_system and economy_system.has_method("tick_prison"):
         economy_system.tick_prison(delta)
+    if Input.is_key_pressed(KEY_F5):
+        _save_game()
+    if Input.is_key_pressed(KEY_F9):
+        _load_saved_game()
 
 func _build_world() -> void:
     sun = DirectionalLight3D.new()
     sun.rotation_degrees = Vector3(-35, -25, 0)
     sun.light_energy = 1.2
     add_child(sun)
-
     var env := WorldEnvironment.new()
     var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
@@ -47,13 +55,11 @@ func _build_world() -> void:
     environment.ambient_light_energy = 0.8
     env.environment = environment
     add_child(env)
-
     _make_box("Ground", Vector3(120, 0.4, 120), Vector3(0, -0.2, 0), Color("#4d5a4a"))
     for x in range(-50, 51, 10):
         _make_box("RoadX", Vector3(8, 0.05, 120), Vector3(x, 0, 0), Color("#30343a"))
     for z in range(-50, 51, 10):
         _make_box("RoadZ", Vector3(120, 0.05, 8), Vector3(0, 0.02, z), Color("#30343a"))
-
     for x in range(-45, 46, 15):
         for z in range(-45, 46, 15):
             if abs(x) < 10 or abs(z) < 10:
@@ -79,6 +85,26 @@ func _build_services() -> void:
     add_child(police_system)
     police_system.setup(player)
 
+    traffic_system = Node3D.new()
+    traffic_system.name = "TrafficAI"
+    traffic_system.set_script(load("res://scripts/traffic_ai.gd"))
+    add_child(traffic_system)
+    traffic_system.setup(player)
+
+    service_system = Node3D.new()
+    service_system.name = "EmergencyServices"
+    service_system.set_script(load("res://scripts/service_ai.gd"))
+    add_child(service_system)
+    service_system.setup(player)
+
+    event_system = load("res://scripts/world_events.gd").new()
+    event_system.name = "WorldEvents"
+    add_child(event_system)
+
+    save_system = load("res://scripts/save_system.gd").new()
+    save_system.name = "SaveSystem"
+    add_child(save_system)
+
     phone_layer = load("res://scripts/phone_system.gd").new()
     add_child(phone_layer)
     phone_layer.emergency_called.connect(_on_emergency_called)
@@ -90,10 +116,19 @@ func report_crime(level: int = 1) -> void:
         economy_system.commit_crime(level)
 
 func _on_emergency_called(service: String, location: Vector3) -> void:
+    if service_system and service_system.has_method("dispatch"):
+        service_system.dispatch(service)
     if service == "102" and police_system:
         police_system.report_crime(1)
-    # 101/103 keep their exact location through the phone signal for later AI/service agents.
     print("Emergency ", service, " requested at ", location)
+
+func _save_game() -> void:
+    if save_system and save_system.save_game(player, economy_system):
+        print("SUPERME save complete")
+
+func _load_saved_game() -> void:
+    if save_system and save_system.load_game(player, economy_system):
+        print("SUPERME save loaded")
 
 func _make_box(n: String, size: Vector3, pos: Vector3, color: Color) -> StaticBody3D:
     var body := StaticBody3D.new()
@@ -130,6 +165,7 @@ func _spawn_cars() -> void:
         car.name = "Car_%02d" % (i + 1)
         car.position = spots[i]
         car.set_script(load("res://scripts/vehicle.gd"))
+        car.add_to_group("vehicles")
         add_child(car)
         _make_car_mesh(car, i)
         cars.append(car)
@@ -209,6 +245,7 @@ func _spawn_selected_vehicle() -> void:
     vehicle.name = "SelectedVehicle"
     vehicle.position = player.global_position + Vector3(3, 0.8, 0)
     vehicle.set_script(load("res://scripts/vehicle.gd"))
+    vehicle.add_to_group("vehicles")
     add_child(vehicle)
     var variant := int(selected_vehicle.get("speed", 0)) % 8
     _make_car_mesh(vehicle, variant)
@@ -223,7 +260,7 @@ func _build_hud() -> void:
     add_child(layer)
     var label := Label.new()
     label.position = Vector2(24, 20)
-    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: transport | F: tushish | G: qurol | Telefon: menyudan\nOFFLINE • Transport va qurol kataloglari ochiq"
+    label.text = "SUPERME: UZBEK WORLD\nWASD: yurish | E: transport | F: tushish | G: qurol | Telefon: menyudan | F5/F9: save/load\nOFFLINE • Transport va qurol kataloglari ochiq"
     label.add_theme_font_size_override("font_size", 20)
     layer.add_child(label)
 
@@ -231,12 +268,10 @@ func _build_main_menu() -> void:
     menu_layer = CanvasLayer.new()
     menu_layer.layer = 20
     add_child(menu_layer)
-
     var background := ColorRect.new()
     background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     background.color = Color(0.02, 0.05, 0.09, 0.94)
     menu_layer.add_child(background)
-
     var title := Label.new()
     title.text = "SUPERME: UZBEK WORLD"
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -245,7 +280,6 @@ func _build_main_menu() -> void:
     title.add_theme_font_size_override("font_size", 48)
     title.add_theme_color_override("font_color", Color("#46c7ff"))
     menu_layer.add_child(title)
-
     var subtitle := Label.new()
     subtitle.text = "OFFLINE OPEN WORLD • 🇺🇿"
     subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -253,7 +287,6 @@ func _build_main_menu() -> void:
     subtitle.size = Vector2(1280, 40)
     subtitle.add_theme_font_size_override("font_size", 20)
     menu_layer.add_child(subtitle)
-
     var start := Button.new()
     start.text = "▶  O‘YINNI BOSHLASH"
     start.position = Vector2(440, 260)
@@ -261,21 +294,18 @@ func _build_main_menu() -> void:
     start.add_theme_font_size_override("font_size", 24)
     start.pressed.connect(_start_game)
     menu_layer.add_child(start)
-
     var garage := Button.new()
     garage.text = "🚗  GARAJ / TRANSPORT"
     garage.position = Vector2(440, 340)
     garage.size = Vector2(400, 55)
     garage.pressed.connect(_open_garage)
     menu_layer.add_child(garage)
-
     var phone := Button.new()
     phone.text = "📱  TELEFON / CHATGPT"
     phone.position = Vector2(440, 410)
     phone.size = Vector2(400, 55)
     phone.pressed.connect(_open_phone)
     menu_layer.add_child(phone)
-
     var settings := Button.new()
     settings.text = "⚙  SOZLAMALAR"
     settings.position = Vector2(440, 480)
