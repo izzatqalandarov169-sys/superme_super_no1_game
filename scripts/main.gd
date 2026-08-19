@@ -1,5 +1,8 @@
 extends Node3D
 
+const WORLD_SIZE_KM := 1200.0
+const CELL_SIZE_KM := 5.0
+
 var player: CharacterBody3D
 var cars: Array[CharacterBody3D] = []
 var npcs: Array[CharacterBody3D] = []
@@ -15,17 +18,22 @@ var traffic_system: Node3D
 var service_system: Node3D
 var event_system: Node
 var save_system: Node
+var mobile_controls: CanvasLayer
+var property_system: Node
 var vehicle_catalog: Array = []
+var activity_catalog: Array = []
 var selected_vehicle: Dictionary = {}
 
 func _ready() -> void:
     vehicle_catalog = _load_vehicle_catalog()
+    activity_catalog = load("res://data/activity_catalog.gd").all_activities()
     _build_world()
     _spawn_player()
     _spawn_cars()
     _spawn_npcs()
     _build_world_streamer()
     _build_services()
+    _build_mobile_controls()
     _build_hud()
     _build_main_menu()
     _load_saved_game()
@@ -79,6 +87,10 @@ func _build_services() -> void:
     economy_system.name = "EconomySystem"
     add_child(economy_system)
 
+    property_system = load("res://scripts/property_system.gd").new()
+    property_system.name = "PropertySystem"
+    add_child(property_system)
+
     police_system = Node3D.new()
     police_system.name = "PoliceSystem"
     police_system.set_script(load("res://scripts/police_system.gd"))
@@ -110,6 +122,11 @@ func _build_services() -> void:
     phone_layer = load("res://scripts/phone_system.gd").new()
     add_child(phone_layer)
     phone_layer.emergency_called.connect(_on_emergency_called)
+
+func _build_mobile_controls() -> void:
+    mobile_controls = load("res://scripts/mobile_controls.gd").new()
+    add_child(mobile_controls)
+    mobile_controls.setup(player)
 
 func _on_world_event_started(event: Dictionary) -> void:
     if event.get("type", "") == "police_chase":
