@@ -2,26 +2,38 @@ name: SUPERME Android APK
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: superme-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout repository
+      - name: Runner started
+        run: |
+          echo "SUPERME Android workflow started"
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "SHA: $GITHUB_SHA"
+
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify runner
+      - name: Verify checkout
         run: |
-          set -eux
-          echo "Runner started"
-          uname -a
-          git rev-parse HEAD
+          set -e
+          test -f project.godot
+          test -f export_presets.cfg
+          echo "Project files found"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -32,49 +44,41 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK components
+      - name: Install Android SDK
         run: |
-          set -euxo pipefail
+          set -e
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           yes | sdkmanager --licenses >/dev/null || true
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          ls -la "$ANDROID_HOME/platforms/android-35"
-          ls -la "$ANDROID_HOME/build-tools/35.0.0"
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
 
-      - name: Download Godot 4.4.1
+      - name: Install Godot 4.4.1
         run: |
-          set -euxo pipefail
+          set -e
           mkdir -p "$RUNNER_TEMP/godot"
-          curl -fL "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" -o "$RUNNER_TEMP/godot.zip"
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip" -o "$RUNNER_TEMP/godot.zip"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
           mv "$RUNNER_TEMP/godot/Godot_v4.4.1-stable_linux.x86_64" "$RUNNER_TEMP/godot/godot"
           chmod +x "$RUNNER_TEMP/godot/godot"
           echo "GODOT=$RUNNER_TEMP/godot/godot" >> "$GITHUB_ENV"
           "$RUNNER_TEMP/godot/godot" --version
 
-      - name: Install Godot Android templates
+      - name: Install Godot export templates
         run: |
-          set -euxo pipefail
+          set -e
           mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
-          curl -fL "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz" -o "$RUNNER_TEMP/templates.tpz"
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz" -o "$RUNNER_TEMP/templates.tpz"
           unzip -q "$RUNNER_TEMP/templates.tpz" -d "$RUNNER_TEMP/templates"
           cp -R "$RUNNER_TEMP/templates/templates/." "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
 
       - name: Create debug keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/debug.keystore" \
-            -alias androiddebugkey \
-            -storepass android \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Configure Godot editor settings
+      - name: Configure Godot
         run: |
-          set -eux
+          set -e
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
 [gd_resource type="EditorSettings" format=3]
@@ -87,21 +91,20 @@ export/android/debug_keystore_user = "androiddebugkey"
 export/android/debug_keystore_pass = "android"
 EOF
 
-      - name: Validate Godot project
+      - name: Validate project
         run: |
-          set -euxo pipefail
+          set -e
           "$GODOT" --headless --editor --path . --quit
 
-      - name: Export Android APK
+      - name: Build APK
         run: |
-          set -euxo pipefail
+          set -e
           rm -rf build/android
           mkdir -p build/android
           "$GODOT" --headless --path . --export-debug "Android" build/android/SUPERME-UZBEK-WORLD.apk
           test -s build/android/SUPERME-UZBEK-WORLD.apk
-          ls -lh build/android/SUPERME-UZBEK-WORLD.apk
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SUPERME-UZBEK-WORLD-APK
